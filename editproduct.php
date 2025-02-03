@@ -6,6 +6,7 @@ include "permission.php";
 
 $id = intval($_GET['id']);
 $idUser = $_SESSION['id'];
+
 $canEdit = hasPermission($idUser, 3, 'update', $con);
 
 if ($canEdit == 0) {
@@ -62,6 +63,7 @@ if ($result->num_rows > 0) {
     $product = $result->fetch_assoc();
     $idCategorySelected = $product['idCategory'];
     $idSubCategorySelected = $product['idSubCategory'];
+    $imgPath = $product['img'];
 } else {
     echo "Produto não encontrado.";
     exit;
@@ -95,14 +97,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $value = $_POST['value'] ?? 0;
     $discount = $_POST['discount'] ?? 0;
     $discounted_value = $value - ($value * ($discount / 100));
-    $sql_update = "UPDATE product SET idProduct = ?,idCategory=?,idSubCategory=?, item = ?, brand = ?,model=?,seriesNum=?,location=?,accessories=?,code=?,observations=?,value=?,discount=?,discounted_value=? WHERE id = ?";
-    $stmt_update = $con->prepare($sql_update);
-    $stmt_update->bind_param("siissssssssdddi", $idProduct, $idCategory, $idSubCategory, $item, $brand, $model, $seriesNum, $location, $accessories, $code, $observations, $value, $discount, $discounted_value, $id);
-    $stmt_update->execute();
 
-    header("Location: productlist.php");
-    exit;
+    // Tratamento do upload de imagem
+    if (isset($_FILES['img']) && $_FILES['img']['error'] === UPLOAD_ERR_OK) {
+        $imgTmpPath = $_FILES['img']['tmp_name'];
+        $imgName = basename($_FILES['img']['name']);
+        $uploadDir = 'uploads/products/';
+        $imgPath = $uploadDir . uniqid() . '_' . $imgName;
+
+        // Cria o diretório se não existir
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        // Move a imagem para o diretório de destino
+        if (!move_uploaded_file($imgTmpPath, $imgPath)) {
+            die("Falha ao fazer upload da imagem.");
+        }
+    }
+
+    $sql_update = "UPDATE product 
+                    SET idProduct = ?, idCategory = ?, idSubCategory = ?, item = ?, brand = ?, 
+                        model = ?, seriesNum = ?, location = ?, accessories = ?, code = ?, 
+                        observations = ?, value = ?, discount = ?, discounted_value = ?, img = ? 
+                    WHERE id = ?";
+    $stmt_update = $con->prepare($sql_update);
+    $stmt_update->bind_param(
+        "siissssssssddssi",
+        $idProduct,
+        $idCategory,
+        $idSubCategory,
+        $item,
+        $brand,
+        $model,
+        $seriesNum,
+        $location,
+        $accessories,
+        $code,
+        $observations,
+        $value,
+        $discount,
+        $discounted_value,
+        $imgPath,
+        $id
+    );
+
+    if ($stmt_update->execute()) {
+        header("Location: productlist.php");
+        exit;
+    } else {
+        echo "Erro ao atualizar o produto: " . $stmt_update->error;
+    }
 }
+
 ?>
 
 <!DOCTYPE html>
@@ -224,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <h4>Editar Produto</h4>
                     </div>
                 </div>
-                <form method="POST">
+                <form method="POST" enctype="multipart/form-data">
                     <div class="card">
                         <div class="card-body">
                             <div class="row">
@@ -338,6 +385,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <input type="text" name="observations" class="form-control" value="<?= $product['observations'] ?>" required>
                                     </div>
                                 </div>
+                                <div class="form-group">
+                                    <label>Imagem do Produto</label>
+                                    <?php if (!empty($imgPath)): ?>
+                                        <div>
+                                            <img src="<?= $imgPath ?>" alt="Imagem do Produto" style="max-width: 200px;">
+                                        </div>
+                                    <?php endif; ?>
+                                    <input type="file" name="img" accept="image/*">
+                                </div>
+
                                 <div class="col-lg-12">
                                     <div class="button-container">
                                         <a href="productlist.php" class="btn btn-cancel">Cancelar</a>

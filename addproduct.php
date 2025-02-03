@@ -100,12 +100,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['item'])) {
     $imgPath = null;
 
     if (!empty($_FILES['img']['name'])) {
-        $targetDir = "uploads/";
+        $targetDir = "uploads/"; // Pasta onde a imagem será armazenada
         $imgPath = $targetDir . uniqid() . "-" . basename($_FILES['img']['name']);
+
+        // Valida se a pasta de destino existe, caso contrário cria
+        if (!is_dir($targetDir)) {
+            mkdir($targetDir, 0755, true);
+        }
+
         if (!move_uploaded_file($_FILES['img']['tmp_name'], $imgPath)) {
             die("Erro ao salvar a imagem.");
         }
     }
+
 
     $sql = "INSERT INTO product (idProduct, idCategory, idSubCategory, item, brand, model, seriesNum, location, accessories, code, img, observations, value, discount,discounted_value)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?)";
