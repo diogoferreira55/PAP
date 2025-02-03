@@ -176,7 +176,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 <form action="" method="POST">
                     <div class="card">
                         <div class="card-body">
-                            <table class="table">
+                            <div class="table-responsive">
                                 <table class="table">
                                     <thead>
                                         <tr>
@@ -213,7 +213,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         <button class="btn btn-submit" type="submit">Confirmar</button>
                                     </div>
                                 </div>
-                            </table>
+                            </div>
                         </div>
                     </div>
                 </form>

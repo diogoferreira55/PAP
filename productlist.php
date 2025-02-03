@@ -138,8 +138,8 @@ $result = $con->query($sql);
                         if (qrScanner) {
                             qrScanner.stop().then(() => {
                                 qrScanner.clear();
-                                document.getElementById('reader').style.display = 'none'; // Esconde o scanner
-                                document.getElementById('openCamera').style.display = 'block'; // Mostra o botão novamente
+                                document.getElementById('reader').style.display = 'none'; 
+                                document.getElementById('openCamera').style.display = 'block'; 
                                 scannerRunning = false; // Libera para escanear novamente
                             }).catch((err) => console.error("Erro ao parar scanner:", err));
                         }
