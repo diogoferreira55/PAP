@@ -18,26 +18,16 @@ $canAction = $canEdit || $canDelete;
 
 $estouEm = 2;
 
-$sql = "SELECT p.*, 
-        pc1.category AS category, 
-        pc2.category AS subCategory,
-        CASE 
-            WHEN rs.status = 'Reservado' THEN 'Reservado'
-            WHEN rs.status = 'Em Espera' AND r.orderDateStart > NOW() THEN 'Disponível'
-            WHEN rs.status = 'Em Espera' AND r.orderDateStart <= NOW() THEN 'Reservado'
-            ELSE 'Disponível' 
-        END AS status
+/*
+$sql = "SELECT p.*, rp.idProduct, rs.status
         FROM product p
-        LEFT JOIN product_category pc2 ON p.idSubCategory = pc2.id
-        LEFT JOIN product_category pc1 ON pc2.idmaincategory = pc1.id
-        LEFT JOIN reservation_product rp ON p.id = rp.idProduct
-        LEFT JOIN reservation r ON rp.idReservation = r.id
-        LEFT JOIN reservation_status rs ON r.idStatus = rs.id
-        WHERE (rs.status IS NULL OR rs.status NOT IN ('Cancelado', 'Concluído'));";
+        join reservation_product rp on p.id = rp.idProduct
+        JOIN reservation r ON rp.idReservation = r.id
+        JOIN reservation_status rs ON r.idStatus = rs.id
+WHERE r.orderDateStart<='2025-02-03' AND r.orderDateEnd<='2025-02-03'
+GROUP BY p.id";
 $result = $con->query($sql);
-
-
-
+*/
 ?>
 
 <!DOCTYPE html>
@@ -45,6 +35,15 @@ $result = $con->query($sql);
 
 <head>
     <?php include "./rel.header.php"; ?>
+    <style>
+        #botFilter {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+        }
+    </style>
 </head>
 
 <body>
@@ -67,89 +66,27 @@ $result = $con->query($sql);
                         <a href="addproduct.php" class="btn btn-added"><img src="/assets/img/icons/plus.svg" alt="img" class="me-1">Adicionar Produto</a>
                     </div>
                 </div>
-                <style>
-                    #openCamera {
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        gap: 5px;
-                        margin-top: 20px;
-                        margin-bottom: 20px;
-                    }
-                </style>
 
-                <button type="button" id="openCamera" class="btn btn-submit"><img src="/assets/img/icons/scanner.svg" alt="img" class="me-1">Ler Código</button>
 
-                <!-- Área para mostrar o scanner (camara pequena) -->
-                <div id="reader" style="width: 300; height: 200; display: none;"></div>
-
-                <!-- Área para mostrar o código escaneado -->
-                <div id="qrResult"></div>
-
-                <!-- Campo de pesquisa -->
-                <div class="form-group">
-                    <input type="text" id="search" placeholder="Pesquisar produto...">
+                <div class="page-header">
+                    <?php
+                    $dataAtual = date('Y-m-d');
+                    ?>
+                    <div>
+                        <div class="form-group">
+                            <label>Filtro Data Inicial</label>
+                            <input type="datetime-local" id="dateStart" name="dateStart" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Filtro Data Final</label>
+                            <input type="datetime-local" id="dateEnd" name="dateEnd" class="form-control" required>
+                        </div>
+                        <input type=button class="filter" id=botFilter value="Filtrar">
+                    </div>
                 </div>
-
-                <script src="https://unpkg.com/html5-qrcode"></script>
-                <script>
-                    let qrScanner = null; // Variável para armazenar o scanner
-                    let scannerRunning = false; // Flag para evitar múltiplas leituras
-
-                    document.getElementById('openCamera').addEventListener('click', function() {
-                        document.getElementById('reader').style.display = 'block'; // Exibe o scanner
-                        document.getElementById('openCamera').style.display = 'none'; // Esconde o botão
-                        startScanner();
-                    });
-
-                    function startScanner() {
-                        if (scannerRunning) return; // Evita inicializar múltiplas vezes
-                        scannerRunning = true;
-
-                        qrScanner = new Html5Qrcode("reader");
-
-                        qrScanner.start({
-                                facingMode: "environment"
-                            }, // Usa a câmera traseira por padrão
-                            {
-                                fps: 10,
-                                qrbox: 250
-                            },
-                            function onScanSuccess(decodedText) {
-                                if (!scannerRunning) return; // Se já parou, não faz nada
-                                scannerRunning = false; // Bloqueia leituras repetidas
-
-                                let searchField = document.getElementById('search');
-                                searchField.value = decodedText; // Preenche com o código escaneado
-                                searchField.removeAttribute("readonly"); // Garante que o usuário pode editar
-                                searchField.focus(); // Mantém o cursor ativo
-                                searchField.setSelectionRange(searchField.value.length, searchField.value.length); // Põe o cursor no final
-
-                                setTimeout(() => {
-                                    $("#search").trigger("input"); // Dispara a busca automaticamente
-                                }, 100);
-
-                                stopScanner(); // Para o scanner após a leitura
-                            }
-                        );
-                    }
-
-                    function stopScanner() {
-                        if (qrScanner) {
-                            qrScanner.stop().then(() => {
-                                qrScanner.clear();
-                                document.getElementById('reader').style.display = 'none'; 
-                                document.getElementById('openCamera').style.display = 'block'; 
-                                scannerRunning = false; // Libera para escanear novamente
-                            }).catch((err) => console.error("Erro ao parar scanner:", err));
-                        }
-                    }
-
-                    // Permitir edição manual após a leitura
-                    document.getElementById('search').addEventListener('keydown', function() {
-                        this.removeAttribute('readonly'); // Garante que possa ser editado
-                    });
-                </script>
+                <div class="form-group">
+                    <input type="text" id="search" placeholder="Pesquisar product...">
+                </div>
                 <div class="card">
                     <div class="card-body">
                         <div class="table-responsive">
@@ -168,7 +105,6 @@ $result = $con->query($sql);
                                     </tr>
                                 </thead>
                                 <tbody id="product-list">
-                                    <!-- Product rows will be dynamically inserted here -->
                                 </tbody>
                             </table>
                         </div>
@@ -183,66 +119,61 @@ $result = $con->query($sql);
         $(document).ready(function() {
             var canDelete = <?php echo $canDelete ? 'true' : 'false'; ?>;
             var canEdit = <?php echo $canEdit ? 'true' : 'false'; ?>;
-            var canView = <?php echo $canEdit ? 'true' : 'false'; ?>;
+            var canView = <?php echo $canView ? 'true' : 'false'; ?>;
             var canAction = <?php echo $canAction ? 'true' : 'false'; ?>;
 
-            function fetchProduct(query) {
+            function fetchProduct(query, dateStart = '', dateEnd = '') {
                 $.ajax({
                     url: "search_product.php",
                     method: "GET",
                     data: {
-                        search: query
+                        search: query,
+                        dateStart: $("#dateStart").val(),
+                        dateEnd: $("#dateEnd").val(),
                     },
                     dataType: "json",
                     success: function(data) {
                         let productList = $("#product-list");
-                        productList.empty(); // Clear the existing products
+                        productList.empty();
 
                         if (data.length > 0) {
-                            // Loop through the fetched products and display them
                             data.forEach(function(product) {
-                                let status = product.status || "N/A"; // Exibe N/A se não houver status definido
-
-                                productList.append(`
-                                <tr>
-                                    <td>
-                                        ${product.img ? `<img src="${product.img}" alt="Product Image" style="width: 50px; height: 50px; object-fit: cover;">` : 'No Image'}
-                                    </td>
-                                    <td>${product.idProduct}</td>
-                                    <td>${product.item}</td>
-                                    <td>${product.location}</td>
-                                    <td>${product.value}</td>
-                                    <td>${status}</td> <!-- Adicionando status -->
-                                    ${canAction ? `
+                                productList.append(
+                                    `<tr>
                                         <td>
-                                            ${canView ? `
-                                                <a title="Detalhes" href="product-details.php?id=${product.id}" class="btn btn-filters ms-auto">
-                                                    <img src="/assets/img/icons/eye.svg" alt="Editar">
-                                                </a>
-                                            ` : ''}
-                                            ${canEdit ? `
-                                                <a title="Editar" href="editproduct.php?id=${product.id}" class="btn btn-filters ms-auto">
-                                                    <img src="/assets/img/icons/edit.svg" alt="Editar">
-                                                </a>
-                                            ` : ''}
-                                            ${canDelete ? `
-                                                <a title="Excluir" href="javascript:void(0);" class="btn btn-filters ms-auto" onclick="confirmarExclusao(${product.id})">
-                                                    <img src="/assets/img/icons/delete.svg" alt="Excluir">
-                                                </a>
-                                            ` : ''}
+                                            ${product.img ? `<img src="${product.img}" alt="Product Image" style="width: 50px; height: 50px; object-fit: cover;">` : 'No Image'}
                                         </td>
-                                    ` : ''}
-                                </tr>
-                            `);
+                                        <td>${product.idProduct}</td>
+                                        <td>${product.item}</td>
+                                        <td>${product.location}</td>
+                                        <td>${product.value}</td>
+                                        <td>${product.status}
+                                        ${canAction ? 
+                                            `<td>
+                                                ${canView ? 
+                                                    `<a title="Detalhes" href="product-details.php?id=${product.id}" class="btn btn-filters ms-auto">
+                                                        <img src="/assets/img/icons/eye.svg" alt="Editar">
+                                                    </a>` : ''}
+                                                ${canEdit ? 
+                                                    `<a title="Editar" href="editproduct.php?id=${product.id}" class="btn btn-filters ms-auto">
+                                                        <img src="/assets/img/icons/edit.svg" alt="Editar">
+                                                    </a>` : ''}
+                                                ${canDelete ? 
+                                                    `<a title="Excluir" href="javascript:void(0);" class="btn btn-filters ms-auto" onclick="confirmarExclusao(${product.id})">
+                                                        <img src="/assets/img/icons/delete.svg" alt="Excluir">
+                                                    </a>` : ''}
+                                            </td>`
+                                        : ''}
+                                    </tr>`
+                                );
                             });
 
                         } else {
-                            // Display a message if no products are found
-                            productList.append(`
-                        <tr>
-                            <td colspan="8">Nenhum produto encontrado.</td>
-                        </tr>
-                    `);
+                            productList.append(
+                                `<tr>
+                                    <td colspan="8">Nenhum produto encontrado.</td>
+                                </tr>`
+                            );
                         }
                     },
                     error: function() {
@@ -250,13 +181,21 @@ $result = $con->query($sql);
                     }
                 });
             }
-            // Trigger the search function when user types
             $("#search").on("input", function() {
                 const query = $(this).val();
-                fetchProduct(query); // Pass the search query
+                fetchProduct(query);
+            });
+            $("#botFilter").on("click", function() {
+                const query = $("#search").val(); // Valor da pesquisa (se houver)
+                const dateStart = $("#dateStart").val(); // Valor da data inicial
+                const dateEnd = $("#dateEnd").val(); // Valor da data final
+
+                // Chama a função de busca com a pesquisa e os filtros de data
+                fetchProduct(query, dateStart, dateEnd);
             });
 
-            // Load all products when the page first loads
+
+
             fetchProduct("");
         });
     </script>

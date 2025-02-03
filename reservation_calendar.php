@@ -1,105 +1,153 @@
 <?php
-include "db.config.php";
+include "db.config.php"; // Conexão com o banco de dados
+include "permission.php"; // Permissões do usuário
 
-$estouEm = 4;
-
-$idUser = $_SESSION['id'];
-
-include "permission.php";
-
+// Obtém o ID do usuário e define as permissões
+$idUser    = $_SESSION['id'];
 $canDelete = hasPermission($idUser, 4, 'delete', $con);
-$canEdit = hasPermission($idUser, 4, 'update', $con);
-$canView = hasPermission($idUser, 4, 'view', $con);
+$canEdit   = hasPermission($idUser, 4, 'update', $con);
+$canView   = hasPermission($idUser, 4, 'view', $con);
 
-if ($canView == 0) {
-    header("Location: no_permission.php");
-    exit;
-}
 $canAction = $canEdit || $canDelete || $canView;
 
-$sql = "SELECT 
-    r.id AS reservation_id,
-    r.idClient,
-    rps.paymentStatus,
-    rs.status,
-    r.orderDateStart,
-    r.orderDateEnd,
-    r.totalValue,
-    c.companyName
-FROM 
-    reservation r
-INNER JOIN 
-    reservation_paymentstatus rps ON r.idPaymentStatus = rps.id
-INNER JOIN
-    reservation_status rs ON r.idStatus = rs.id
-INNER JOIN 
-    client c ON r.idClient = c.id";
+$estouEm = 6;
+// Se for uma requisição AJAX para buscar eventos do calendário
+if (isset($_GET['action']) && $_GET['action'] == "getEvents") {
+    header('Content-Type: application/json');
 
-$result = $con->query($sql);
+    $sql = "SELECT id, orderDateStart, orderDateEnd, companyName FROM reservation";
+    $result = $con->query($sql);
 
-$reservations = [];
-if ($result->num_rows > 0) {
+    $events = [];
     while ($row = $result->fetch_assoc()) {
-        $reservations[] = $row;
+        $events[] = [
+            'id'    => $row['id'],
+            'title' => $row['companyName'],
+            'start' => $row['orderDateStart'],
+            'end'   => $row['orderDateEnd']
+        ];
     }
-} else {
-    echo "Nenhuma reserva encontrada.";
+    echo json_encode($events);
+    exit;
+}
+
+// Se for uma requisição AJAX para buscar reservas de um dia específico
+if (isset($_GET['action']) && $_GET['action'] == "getReservations") {
+    $dateFilter = $_GET['date'] ?? null;
+
+    if (!$dateFilter) {
+        echo "<p>Data não informada.</p>";
+        exit;
+    }
+
+    $stmt = $con->prepare("SELECT r.id, c.companyName, r.orderDateStart, r.orderDateEnd, r.totalValue
+                           FROM reservation r
+                           INNER JOIN client c ON r.idClient = c.id
+                           WHERE DATE(r.orderDateStart) = ?");
+    $stmt->bind_param("s", $dateFilter);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        echo '<table class="table table-striped">';
+        echo '<thead><tr><th>Cliente</th><th>Início</th><th>Fim</th><th>Valor</th></tr></thead><tbody>';
+        while ($row = $result->fetch_assoc()) {
+            echo '<tr>';
+            echo '<td>' . $row['companyName'] . '</td>';
+            echo '<td>' . $row['orderDateStart'] . '</td>';
+            echo '<td>' . $row['orderDateEnd'] . '</td>';
+            echo '<td>' . number_format($row['totalValue'], 2, ',', '.') . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+    } else {
+        echo "<p>Nenhuma reserva encontrada.</p>";
+    }
+
+    $stmt->close();
+    exit;
+}
+
+// Se for uma requisição AJAX para buscar produtos relacionados a uma data
+if (isset($_GET['action']) && $_GET['action'] == "getProducts") {
+    $dateFilter = $_GET['date'] ?? null;
+
+    if (!$dateFilter) {
+        echo "<p>Data não informada.</p>";
+        exit;
+    }
+
+    $stmt = $con->prepare("SELECT p.item, p.brand,p.model,p.value
+                           FROM product p
+                           INNER JOIN reservation_product rp ON rp.idProduct = p.id
+                           INNER JOIN reservation r ON r.id = rp.idReservation
+                           WHERE r.orderDateStart <= ? AND r.orderDateEnd >= ?");
+    $stmt->bind_param("ss", $dateFilter, $dateFilter);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        echo '<table class="table table-striped">';
+        echo '<thead><tr><th>Produto</th><th>Quantidade</th></tr></thead><tbody>';
+        while ($row = $result->fetch_assoc()) {
+            echo '<tr>';
+            echo '<td>' . $row['name'] . '</td>';
+            echo '<td>' . $row['quantity'] . '</td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+    } else {
+        echo "<p>Nenhum produto encontrado.</p>";
+    }
+
+    $stmt->close();
+    exit;
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 
 <head>
     <?php include "./rel.header.php"; ?>
+    <style>
+        #calendar {
+            max-width: 900px;
+            margin: 40px auto;
+        }
+    </style>
 </head>
 
 <body>
     <div id="global-loader">
         <div class="whirly-loader"> </div>
     </div>
+    <div class="page-wrapper">
 
-    <div class="main-wrapper">
-
-        <?php include "./menu.header.php"; ?>
-        <?php include "./menu.lateral.php"; ?>
-
-        <div class="page-wrapper">
+        <div class="main-wrapper">
+            <?php include "./menu.header.php"; ?>
+            <?php include "./menu.lateral.php"; ?>
             <div class="content">
                 <div class="page-header">
                     <div class="page-title">
-                        <h4>Lista de Reservas</h4>
-                    </div>
-                    <div class="page-btn">
-                        <a href="addreservation.php" class="btn btn-added">
-                            <img src="/assets/img/icons/plus.svg" alt="img" class="me-1">Adicionar Reserva
-                        </a>
+                        <h2 class="text-center">Calendário de Reservas</h2>
                     </div>
                 </div>
-                <div class="form-group">
-                    <input type="text" id="search" placeholder="Pesquisar reservas...">
-                </div>
-                <div class="card">
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table">
-                                <thead>
-                                    <tr>
-                                        <th>Cliente</th>
-                                        <th>Estado</th>
-                                        <th>Data Início</th>
-                                        <th>Data Fim</th>
-                                        <th>Estado de Pagamento</th>
-                                        <th>Valor</th>
-                                        <?php if ($canAction) { ?>
-                                            <th>Ações</th>
-                                        <?php } ?>
-                                    </tr>
-                                </thead>
-                                <tbody id="reservation-list">
-                                    <!-- Produtos carregados via AJAX -->
-                                </tbody>
-                            </table>
+                <div id="calendar"></div>
+
+                <!-- Modal para exibir reservas -->
+                <div class="modal fade" id="reservationModal" tabindex="-1" aria-labelledby="reservationModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Reservas para <span id="modalDate"></span></h5>
+                                <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body" id="modalContent">
+                                <p>Carregando reservas...</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -107,106 +155,10 @@ if ($result->num_rows > 0) {
         </div>
     </div>
 
-    <script src="/assets/js/jquery-3.6.0.min.js"></script>
-    <script>
-        $(document).ready(function() {
-            // Passando os dados das reservas para o JavaScript usando JSON
-            var canDelete = <?php echo $canDelete ? 'true' : 'false'; ?>;
-            var canEdit = <?php echo $canEdit ? 'true' : 'false'; ?>;
-            var canView = <?php echo $canView ? 'true' : 'false'; ?>;
-            var canAction = <?php echo $canAction ? 'true' : 'false'; ?>;
-
-            // Função para exibir as reservas na tabela
-            function fetchReservation(query) {
-                $.ajax({
-                    url: "search_reservation.php",
-                    method: "GET",
-                    data: {
-                        search: query
-                    },
-                    dataType: "json",
-                    success: function(data) {
-                        let reservationList = $("#reservation-list");
-                        reservationList.empty(); // Clear the existing products
-
-                        if (data.length > 0) {
-                            // Loop through the fetched products and display them
-                            data.forEach(function(reservation) {
-                                let id = reservation.id; // Adjust this to match the actual product ID
-                                let actions = '';
-
-                                // Adicionando botão de "Visualizar"
-                                if (canView) {
-                                    actions += `
-                                        <a title="Visualizar" href="reservation-details.php?id=${reservation.reservation_id}" class="btn btn-filters ms-auto">
-                                            <img src="/assets/img/icons/eye.svg" alt="Visualizar">
-                                        </a>
-                                    `;
-                                }
-
-                                // Adicionando botão de "Editar"
-                                if (canEdit) {
-                                    actions += `
-                                        <a title="Editar" href="editreservation.php?id=${reservation.reservation_id}" class="btn btn-filters ms-auto">
-                                            <img src="/assets/img/icons/edit.svg" alt="Editar">
-                                        </a>
-                                    `;
-                                }
-
-                                // Adicionando botão de "Excluir"
-                                if (canDelete && reservation.status === 'Cancelado') {
-                                    actions += `
-                                        <a title="Excluir" href="javascript:void(0);" class="btn btn-filters ms-auto" onclick="confirmarExclusao(${reservation.reservation_id})">
-                                            <img src="/assets/img/icons/delete.svg" alt="Excluir">
-                                        </a>
-                                    `;
-                                }
-
-                                // Adicionando botão de "Cancelar"
-                                if (canDelete && reservation.status === 'Em Espera') {
-                                    actions += `
-                                        <a title="Cancelar" href="javascript:void(0);" class="btn btn-filters ms-auto" onclick="confirmarCancelamento(${reservation.reservation_id})">
-                                            <img src="/assets/img/icons/cancel.svg" alt="Cancelar">
-                                        </a>
-                                    `;
-                                }
-
-                                reservationList.append(`
-                                <tr>
-                                    <td>${reservation.companyName}</td>
-                                    <td>${reservation.status}</td>
-                                    <td>${reservation.orderDateStart}</td>
-                                    <td>${reservation.orderDateEnd}</td>
-                                    <td>${reservation.paymentStatus}</td>
-                                    <td>${parseFloat(reservation.totalValue).toFixed(2).replace('.', ',')}</td>
-                                    <td>${actions}</td>
-                                </tr>
-                            `);
-                            });
-                        } else {
-                            // Display a message if no products are found
-                            reservationList.append(`
-                        <tr>
-                            <td colspan="8">Nenhum produto encontrado.</td>
-                        </tr>
-                    `);
-                        }
-                    },
-                    error: function() {
-                        alert("Erro ao buscar produtos.");
-                    }
-                });
-            }
-
-
-            // Função para buscar reservas ao digitar no campo de pesquisa (se for necessário)
-            $("#search").on("input", function() {
-                const query = $(this).val();
-                fetchReservation(query); // Pass the search query
-            });
-            fetchReservation("");
-        });
-    </script>
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
     <script src="/assets/js/feather.min.js"></script>
     <script src="/assets/js/jquery.slimscroll.min.js"></script>
     <script src="/assets/js/jquery.dataTables.min.js"></script>
@@ -216,62 +168,42 @@ if ($result->num_rows > 0) {
     <script src="/assets/plugins/sweetalert/sweetalert2.all.min.js"></script>
     <script src="/assets/plugins/sweetalert/sweetalerts.min.js"></script>
     <script src="/assets/js/script.js"></script>
-
     <script>
-        // Função de confirmação de cancelamento
-        function confirmarCancelamento(id) {
-            Swal.fire({
-                title: 'Tem certeza?',
-                text: "Esta ação não pode ser desfeita!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sim, cancelar!',
-                cancelButtonText: 'Não!',
-                reverseButtons: true,
-                customClass: {
-                    icon: 'swal-icon-custom'
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = 'cancelreservation.php?id=' + id;
-                }
-            });
-        }
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
 
-        function confirmarCancelamento(id) {
-            Swal.fire({
-                title: 'Tem certeza?',
-                text: "Esta ação não pode ser desfeita!",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonText: 'Sim, cancelar!',
-                cancelButtonText: 'Não !',
-                reverseButtons: true,
-                customClass: {
-                    icon: 'swal-icon-custom'
-                }
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = 'cancelreservation.php?id=' + id;
-                }
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                selectable: true,
+
+                // Quando clicar em uma data, abre o modal e carrega as reservas
+                dateClick: function(info) {
+                    $("#modalDate").text(info.dateStr);
+                    $("#modalContent").html("<p>Carregando reservas...</p>");
+                    $("#reservationModal").modal("show");
+
+                    $.ajax({
+                        url: "<?php echo $_SERVER['PHP_SELF']; ?>",
+                        type: "GET",
+                        data: {
+                            action: "getReservations",
+                            date: info.dateStr
+                        },
+                        success: function(data) {
+                            $("#modalContent").html(data);
+                        },
+                        error: function() {
+                            $("#modalContent").html("<p>Erro ao carregar reservas.</p>");
+                        }
+                    });
+
+                },
+
             });
-        }
+
+            calendar.render();
+        });
     </script>
-
-    <style>
-        .swal-icon-custom {
-            color: #0d6efd !important;
-        }
-
-        .swal2-icon.swal2-warning {
-            border-color: #0d6efd !important;
-            color: #0d6efd !important;
-        }
-
-        .swal2-icon.swal2-warning .swal2-icon-content {
-            color: #0d6efd !important;
-        }
-    </style>
 </body>
 
 </html>

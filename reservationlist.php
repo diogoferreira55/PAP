@@ -17,34 +17,34 @@ if ($canView == 0) {
 }
 $canAction = $canEdit || $canDelete || $canView;
 
-$sql = "SELECT 
-    r.id AS reservation_id,
-    r.idClient,
-    rps.paymentStatus,
-    rs.status,
-    r.orderDateStart,
-    r.orderDateEnd,
-    r.totalValue,
-    c.companyName
-FROM 
-    reservation r
-INNER JOIN 
-    reservation_paymentstatus rps ON r.idPaymentStatus = rps.id
-INNER JOIN
-    reservation_status rs ON r.idStatus = rs.id
-INNER JOIN 
-    client c ON r.idClient = c.id";
+// // $sql = "SELECT 
+// //     r.id AS reservation_id,
+// //     r.idClient,
+// //     rps.paymentStatus,
+// //     rs.status,
+// //     r.orderDateStart,
+// //     r.orderDateEnd,
+// //     r.totalValue,
+// //     c.companyName
+// // FROM 
+// //     reservation r
+// // INNER JOIN 
+// //     reservation_paymentstatus rps ON r.idPaymentStatus = rps.id
+// // INNER JOIN
+// //     reservation_status rs ON r.idStatus = rs.id
+// // INNER JOIN 
+// //     client c ON r.idClient = c.id";
 
-$result = $con->query($sql);
+// // $result = $con->query($sql);
 
-$reservations = [];
-if ($result->num_rows > 0) {
-    while ($row = $result->fetch_assoc()) {
-        $reservations[] = $row;
-    }
-} else {
-    echo "Nenhuma reserva encontrada.";
-}
+// $reservations = [];
+// if ($result->num_rows > 0) {
+//     while ($row = $result->fetch_assoc()) {
+//         $reservations[] = $row;
+//     }
+// } else {
+//     echo "Nenhuma reserva encontrada.";
+// }
 ?>
 
 <!DOCTYPE html>

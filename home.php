@@ -174,13 +174,13 @@ $total_reservations = $row['total_reservations'];
                                         </thead>
                                         <tbody>
                                             <?php
-                                            $sql = "SELECT id, item, discounted_value FROM product ORDER BY created ASC LIMIT 4";
+                                            $sql = "SELECT id, item, discounted_value FROM product ORDER BY created ASC limit 7";
                                             $stmt = $con->prepare($sql);
                                             $stmt->execute();
                                             $result = $stmt->get_result();
                                             while ($row = $result->fetch_assoc()) {
                                                 $product_id = $row['id'];
-                                                $product_name = $row['item'];
+                                                $product_name = $row['item'];                 
                                                 $product_price = $row['discounted_value'];
                                                 echo "<tr>
                                                     <td>$product_id</td>
@@ -215,10 +215,10 @@ $total_reservations = $row['total_reservations'];
                                 <tbody>
                                     <?php
                                     $sql = "SELECT r.id, c.companyName AS client_name, r.orderDateStart, r.orderDateEnd 
-                            FROM reservation r
-                            JOIN client c ON r.idClient = c.id
-                            ORDER BY r.orderDateStart DESC 
-                            LIMIT 5";
+                                        FROM reservation r
+                                        JOIN client c ON r.idClient = c.id
+                                        ORDER BY r.orderDateStart DESC 
+                                        LIMIT 5";
                                     $stmt = $con->prepare($sql);
                                     $stmt->execute();
                                     $result = $stmt->get_result();

@@ -1,8 +1,12 @@
 <?php
 include "db.config.php";
 
+$dataAtual = date('Y-m-d');
+
 // Pegando o termo de pesquisa, se houver
 $searchTerm = isset($_GET['search']) ? trim($_GET['search']) : "";
+$dateStart = isset($_GET['dateStart']) ? trim($_GET['dateStart']) : $dataAtual;
+$dateEnd = isset($_GET['dateEnd']) ? trim($_GET['dateEnd']) : $dateEnd;
 
 // Consultando os produtos com o termo de pesquisa
 $sqlProducts = "SELECT p.*, 
@@ -14,15 +18,27 @@ $sqlProducts = "SELECT p.*,
         LEFT JOIN product_category pc2 ON p.idSubCategory = pc2.id
         LEFT JOIN product_category pc1 ON pc2.idmaincategory = pc1.id
         LEFT JOIN reservation_product rp ON p.id = rp.idProduct
-        LEFT JOIN reservation r ON rp.idReservation = r.id
+        LEFT JOIN reservation r ON 
+            (rp.idReservation = r.id
+            AND
+                (
+                    (r.orderDateStart<='$dateStart 23:59:59'  AND   r.orderDateEnd>='$dateEnd 00:00:00')
+                    OR
+                    (r.orderDateStart>='$dateStart 00:00:00'  AND   r.orderDateStart<='$dateEnd 23:59:59')
+                    OR
+                    (r.orderDateEnd>='$dateStart 00:00:00'  AND   r.orderDateEnd<='$dateEnd 23:59:59')
+                )
+            )
         LEFT JOIN reservation_status rs ON r.idStatus = rs.id
         WHERE (
             p.id LIKE ? OR p.code LIKE ? OR pc1.category LIKE ? 
             OR pc2.category LIKE ? OR p.item LIKE ? 
             OR p.brand LIKE ? OR p.model LIKE ? 
             OR p.location LIKE ? OR p.value LIKE ?
-        )
+        ) 
+        GROUP BY p.id        
         ORDER BY p.id 
+ 
         LIMIT 20";
 
 

@@ -28,32 +28,53 @@ if ($result && $result->num_rows > 0) {
     die("Erro ao buscar os detalhes da reserva.");
 }
 
+// Buscar os produtos da reserva
+$sqlProducts = "SELECT p.item, p.brand, p.model, p.value
+                FROM reservation_product rp
+                INNER JOIN product p ON rp.idProduct = p.id
+                WHERE rp.idReservation = ?";
+$stmtProducts = $con->prepare($sqlProducts);
+$stmtProducts->bind_param("i", $idReservation);
+$stmtProducts->execute();
+$productsResult = $stmtProducts->get_result();
+
+$productsHtml = "";
+while ($product = $productsResult->fetch_assoc()) {
+    $productsHtml .= "<p><strong>Produto:</strong> " . htmlspecialchars($product['item'], ENT_QUOTES, 'UTF-8') . "<br>
+                      <strong>Marca:</strong> " . htmlspecialchars($product['brand'], ENT_QUOTES, 'UTF-8') . "<br>
+                      <strong>Modelo:</strong> " . htmlspecialchars($product['model'], ENT_QUOTES, 'UTF-8') . "<br>
+                      <strong>Valor:</strong> €" . number_format($product['value'], 2, ',', '.') . "</p>";
+}
+
 // Configuração do PHPMailer
 $mail = new PHPMailer(true);
 
 try {
     $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = getenv('diogohenriqueferreira5@gmail.com');
-    $mail->Password = getenv('Diogo_ferreira5?');
+    $mail->SMTPAuth   = true;
+    $mail->Port       = 587;
+    $mail->Host       = "mail.kuattrodesign.com";
+    $mail->Username   = "noreply@kuattrodesign.com";
+    $mail->Password   = "ockPJzX1WRC8";
     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port = 587;
 
-    // Configuração do e-mail
-    $mail->setFrom('diogohenriqueferreira5@gmail.com', 'Zoom Out');
+    $mail->setFrom('noreply@kuattrodesign.com', 'estuda.pt');
     $mail->addAddress($reservation['email'], $reservation['companyName']);
 
     $mail->isHTML(true);
+    $mail->CharSet = 'UTF-8';  // Definir o charset para UTF-8
     $mail->Subject = 'Confirmação da Reserva #' . $reservation['id'];
 
-    // Corpo do e-mail
+    // Corpo do e-mail com detalhes da reserva e produtos
     $mail->Body = "<h2>Detalhes da sua Reserva</h2>
-                   <p><strong>ID da Reserva:</strong> " . htmlspecialchars($reservation['id']) . "</p>
-                   <p><strong>Cliente:</strong> " . htmlspecialchars($reservation['companyName']) . "</p>
+                   <p><strong>ID da Reserva:</strong> " . htmlspecialchars($reservation['id'], ENT_QUOTES, 'UTF-8') . "</p>
+                   <p><strong>Cliente:</strong> " . htmlspecialchars($reservation['companyName'], ENT_QUOTES, 'UTF-8') . "</p>
                    <p><strong>Data da Reserva:</strong> " . date("d/m/Y", strtotime($reservation['orderDateStart'])) . "</p>
-                   <p><strong>Valor Total:</strong> €" . number_format($reservation['totalValue'], 2, ',', '.') . "</p>";
+                   <p><strong>Valor Total:</strong> €" . number_format($reservation['totalValue'], 2, ',', '.') . "</p>
+                   <h3>Produtos Reservados</h3>
+                   $productsHtml";
 
+    // Envia o e-mail
     $mail->send();
     echo 'E-mail enviado com sucesso!';
     header('location: reservationlist.php');
